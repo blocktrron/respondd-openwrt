@@ -246,7 +246,8 @@ static void count_stations(size_t *wifi24, size_t *wifi5, size_t *owe24, size_t 
 		if (!ifname)
 			continue;
 
-		if (strstr(ifname, "owe") == ifname)
+		const char *encryption = uci_lookup_option_string(ctx, s, "encryption");
+		if (encryption && strstr(encryption, "owe"))
 			count_iface_stations(owe24, owe5, ifname);
 
 		count_iface_stations(wifi24, wifi5, ifname);
@@ -277,9 +278,12 @@ static struct json_object * get_clients(void) {
 struct json_object * respondd_provider_statistics(void) {
 	struct json_object *ret = json_object_new_object();
 	char node_id[NODE_ID_LEN + 1] = {};
+	char primary_mac[MAC_ADDRESS_LEN + 1] = {};
 
-	respondd_common_read_node_id(node_id);
-
+	if (respondd_common_read_primary_mac(primary_mac))
+		return NULL;
+	
+	respondd_common_mac_to_node_id(primary_mac, node_id);
 	json_object_object_add(ret, "node_id", json_object_new_string(node_id));
 
 	json_object_object_add(ret, "time", get_time());

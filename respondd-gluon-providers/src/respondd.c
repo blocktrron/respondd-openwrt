@@ -2,6 +2,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 
 #include "respondd-statistics.h"
+#include "respondd-nodeinfo.h"
 
 #include <respondd.h>
 
@@ -9,5 +10,6 @@
 __attribute__ ((visibility ("default")))
 const struct respondd_provider_info respondd_providers[] = {
 	{"statistics", respondd_provider_statistics},
+	{"nodeinfo", respondd_provider_nodeinfo},
 	{}
 };
