@@ -17,6 +17,64 @@ struct respondd_nodeinfo_data {
 	struct json_object *primary_mac;
 };
 
+static struct uci_section * get_first_section(struct uci_package *p, const char *type) {
+	struct uci_element *e;
+	uci_foreach_element(&p->sections, e) {
+		struct uci_section *s = uci_to_section(e);
+		if (!strcmp(s->type, type))
+			return s;
+	}
+
+	return NULL;
+}
+
+static struct json_object *get_double(struct uci_context *ctx, struct uci_section *s, const char *name)
+{
+	const char *val = uci_lookup_option_string(ctx, s, name);
+	if (!val || !*val)
+		return NULL;
+	
+	char *end;
+	double d = strtod(val, &end);
+	if (*end)
+		return NULL;
+	
+	struct json_object *jso = json_object_new_double(d);
+	json_object_set_serializer(jso, json_object_double_to_json_string, "%.8f", NULL);
+	return jso;
+}
+
+static struct json_object *get_location()
+{
+	struct json_object *obj = json_object_new_object();
+	if (!obj)
+		return NULL;
+	
+	struct uci_context *ctx = uci_alloc_context();
+	if (!ctx)
+		return obj;
+	ctx->flags &= ~UCI_FLAG_STRICT;
+
+	struct uci_package *p;
+	if (!uci_load(ctx, "respondd-gluon", &p)) {
+		struct uci_section *s = get_first_section(p, "nodeinfo");
+		if (!s)
+			goto out;
+		
+		struct json_object *latitude = get_double(ctx, s, "latitude");
+		if (latitude)
+			json_object_object_add(obj, "latitude", latitude);
+		struct json_object *longitude = get_double(ctx, s, "longitude");
+		if (longitude)
+			json_object_object_add(obj, "longitude", longitude);	
+	}
+out:
+	if (ctx)
+		uci_free_context(ctx);
+
+	return obj;
+}
+
 static const char *get_release() {
 	static char release[50] = {};
 	char *line = NULL;
@@ -147,6 +205,10 @@ struct json_object * respondd_provider_nodeinfo(void) {
 	struct json_object *system = json_object_new_object();
 	json_object_object_add(system, "site_code", json_object_new_string("ffda"));
 	json_object_object_add(ret, "system", system);
+
+	struct json_object *location = get_location();
+	if (location)
+		json_object_object_add(ret, "location", location);
 
 	return ret;
 }

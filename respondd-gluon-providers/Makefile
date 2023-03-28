@@ -15,9 +15,10 @@ define Package/respondd-gluon-providers
 endef
 
 define Package/respondd-gluon-providers/install
-	$(INSTALL_DIR) $(1)/usr/lib/respondd $(1)/usr/lib/gluon-respondd
+	$(INSTALL_DIR) $(1)/usr/lib/respondd $(1)/usr/lib/gluon-respondd $(1)/etc/config
 	$(CP) $(PKG_BUILD_DIR)/respondd.so $(1)/usr/lib/respondd/$(PKG_NAME).so
 	$(INSTALL_BIN) ./files/label-mac.sh $(1)/usr/lib/gluon-respondd/label-mac.sh
+	$(INSTALL_BIN) ./files/respondd-gluon.config $(1)/etc/config/respondd-gluon
 endef
 
 $(eval $(call BuildPackage,respondd-gluon-providers))
