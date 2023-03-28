@@ -10,6 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <arpa/inet.h>
 #include <netlink/netlink.h>
 #include <netlink/msg.h>
 #include <net/if.h>
@@ -56,17 +57,17 @@ static int get_addresses_cb(struct nl_msg *msg, void *arg) {
 	return NL_OK;
 }
 
-static struct json_object *get_addresses(const char *iface) {
+static void get_addresses_iface(const char *iface, struct json_object *output) {
 	struct ip_address_information info = {
 		.ifindex = if_nametoindex(iface),
-		.addresses = json_object_new_array(),
+		.addresses = output,
 	};
 	int err;
 
 	/* Open socket */
 	struct nl_sock *socket = nl_socket_alloc();
 	if (!socket) {
-		return info.addresses;
+		return;
 	}
 
 	err = nl_connect(socket, NETLINK_ROUTE);
@@ -87,7 +88,7 @@ static struct json_object *get_addresses(const char *iface) {
 
 out_free:
 	nl_socket_free(socket);
-	return info.addresses;
+	return;
 }
 
 static struct uci_section * get_first_section(struct uci_package *p, const char *type) {
@@ -99,6 +100,43 @@ static struct uci_section * get_first_section(struct uci_package *p, const char 
 	}
 
 	return NULL;
+}
+
+static struct json_object *get_addresses() {
+	struct json_object *jso = json_object_new_array();
+	struct uci_context *ctx = uci_alloc_context();
+
+	if (!ctx)
+		return jso;
+	ctx->flags &= ~UCI_FLAG_STRICT;
+
+	struct uci_package *p;
+	if (!uci_load(ctx, "respondd-gluon", &p)) {
+		struct uci_section *s = get_first_section(p, "ip-addresses");
+		if (!s)
+			goto out;
+		
+		struct uci_option *o = uci_lookup_option(ctx, s, "interface");
+		/* Handle both list as well as strings */
+		if (o->type == UCI_TYPE_STRING) {
+			/* String */
+			get_addresses_iface(o->v.string, jso);
+		} else {
+			/* List */
+			struct uci_element *l;
+			uci_foreach_element(&o->v.list, l) {
+				if (!l->name)
+					continue;
+				
+				get_addresses_iface(l->name, jso);
+			}
+		}
+	}
+out:
+	if (ctx)
+		uci_free_context(ctx);
+
+	return jso;
 }
 
 static struct json_object *get_double(struct uci_context *ctx, struct uci_section *s, const char *name)
@@ -265,7 +303,7 @@ struct json_object * respondd_provider_nodeinfo(void) {
 
 	struct json_object *network = json_object_new_object();
 	json_object_object_add(network, "mac", json_object_new_string(primary_mac));
-	json_object_object_add(network, "addresses", get_addresses("eth1.30"));
+	json_object_object_add(network, "addresses", get_addresses());
 	json_object_object_add(ret, "network", network);
 
 	struct json_object *software = json_object_new_object();
