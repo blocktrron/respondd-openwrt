@@ -64,6 +64,9 @@ static void get_addresses_iface(const char *iface, struct json_object *output) {
 	};
 	int err;
 
+	if (!info.ifindex)
+		return;
+
 	/* Open socket */
 	struct nl_sock *socket = nl_socket_alloc();
 	if (!socket) {
